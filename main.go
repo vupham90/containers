@@ -37,8 +37,11 @@ func main() {
 
 					// Validate quality
 					validQualities := map[string]bool{
-						"ebook": true, "screen": true, "printer": true,
-						"prepress": true, "default": true,
+						"ebook":    true,
+						"screen":   true,
+						"printer":  true,
+						"prepress": true,
+						"default":  true,
 					}
 					if !validQualities[quality] {
 						return fmt.Errorf("invalid quality: %s", quality)
