@@ -67,7 +67,7 @@ func main() {
 					image := "ghcr.io/vupham90/containers-pdf-compress:latest"
 					workDir := dir
 					args := []string{
-						"gs",
+						"-dNODISPLAY", // Prevent Ghostscript from trying to open X display
 						"-sDEVICE=pdfwrite",
 						"-dCompatibilityLevel=1.4",
 						fmt.Sprintf("-dPDFSETTINGS=/%s", quality),
