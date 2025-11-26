@@ -47,3 +47,64 @@ func RunContainer(image, workDir string, args []string) error {
 
 	return nil
 }
+
+// RunDaemon runs a Docker container in detached mode with the specified configuration.
+// It first removes any existing container with the same name to ensure idempotency.
+func RunDaemon(name, image string, ports map[string]string, env map[string]string) error {
+	// Remove existing container if it exists
+	removeCmd := exec.Command("docker", "ps", "-a", "--format", "{{.Names}}")
+	output, err := removeCmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to list containers: %w", err)
+	}
+
+	// Check if container exists
+	containerExists := false
+	for _, line := range []string{string(output)} {
+		if line == name {
+			containerExists = true
+			break
+		}
+	}
+
+	if containerExists {
+		rmCmd := exec.Command("docker", "rm", "-f", name)
+		rmCmd.Stdout = os.Stdout
+		rmCmd.Stderr = os.Stderr
+		if err := rmCmd.Run(); err != nil {
+			return fmt.Errorf("failed to remove existing container: %w", err)
+		}
+	}
+
+	// Build docker run command
+	dockerArgs := []string{
+		"run",
+		"-d",
+		"--name", name,
+		"--restart", "unless-stopped",
+	}
+
+	// Add port mappings
+	for hostPort, containerPort := range ports {
+		dockerArgs = append(dockerArgs, "-p", fmt.Sprintf("%s:%s", hostPort, containerPort))
+	}
+
+	// Add environment variables
+	for key, value := range env {
+		dockerArgs = append(dockerArgs, "-e", fmt.Sprintf("%s=%s", key, value))
+	}
+
+	// Add image
+	dockerArgs = append(dockerArgs, image)
+
+	// Execute docker command
+	cmd := exec.Command("docker", dockerArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("docker run failed: %w", err)
+	}
+
+	return nil
+}

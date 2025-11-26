@@ -1,0 +1,21 @@
+{
+    "name": "Go 1.23",
+    "image": "mcr.microsoft.com/devcontainers/go:1.23",
+    "features": {
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "golang.go"
+            ],
+            "settings": {
+                "go.toolsManagement.checkForUpdates": "local",
+                "go.useLanguageServer": true,
+                "go.gopath": "/go"
+            }
+        }
+    },
+    "postCreateCommand": "go mod download",
+    "remoteUser": "vscode"
+}
