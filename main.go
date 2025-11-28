@@ -58,6 +58,16 @@ func main() {
 						return fmt.Errorf("file does not exist: %s", absFilePath)
 					}
 
+					/*
+						docker run \
+						  --rm \
+						  -v ~/Downloads:/workspace \
+						  -w /workspace \
+						  --entrypoint sh \
+						  ghcr.io/vupham90/containers-pdf-compress:latest \
+						  -c "gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/ebook -o /workspace/out.pdf /workspace/ALPINE.pdf && ls -la /workspace/out.pdf"
+					*/
+
 					// Generate output path
 					dir := filepath.Dir(absFilePath)
 					base := strings.TrimSuffix(filepath.Base(absFilePath), ".pdf")
@@ -67,17 +77,12 @@ func main() {
 					image := "ghcr.io/vupham90/containers-pdf-compress:latest"
 					workDir := dir
 					args := []string{
-						"-dNODISPLAY", // Prevent Ghostscript from trying to open X display
 						"-sDEVICE=pdfwrite",
 						"-dCompatibilityLevel=1.4",
 						fmt.Sprintf("-dPDFSETTINGS=/%s", quality),
-						"-dNOPAUSE",
-						"-dQUIET",
-						"-dBATCH",
-						fmt.Sprintf("-sOutputFile=%s", outputFilename),
-						filepath.Base(absFilePath),
+						"-o", "/workspace/" + outputFilename,
+						"/workspace/" + filepath.Base(absFilePath),
 					}
-
 					return RunContainer(image, workDir, args)
 				},
 			},

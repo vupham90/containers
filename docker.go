@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 // RunContainer executes a Docker container with the specified image, working directory, and arguments.
@@ -34,6 +35,9 @@ func RunContainer(image, workDir string, args []string) error {
 
 	// Append command arguments (e.g., gs command and its flags)
 	dockerArgs = append(dockerArgs, args...)
+
+	// Debug: Print the exact command being executed
+	fmt.Printf("Executing: docker %s\n", strings.Join(dockerArgs, " "))
 
 	// Execute docker command
 	cmd := exec.Command("docker", dockerArgs...)
