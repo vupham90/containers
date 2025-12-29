@@ -14,6 +14,10 @@ if [ -z "${BW_CLIENTID:-}" ] || [ -z "${BW_CLIENTSECRET:-}" ] || [ -z "${BW_PASS
     exit 1
 fi
 
+# Debug: Print profile and organization info
+log "Profile: ${BW_PROFILE:-<not set>}"
+log "Organization ID: ${BW_ORGANIZATIONID:-<not set>}"
+
 # Step 2: Set backup directory (mounted to /workspace by containers CLI)
 TARGET_BACKUP_DIR="/workspace"
 
@@ -66,7 +70,7 @@ export BW_SESSION
 if [ -n "${BW_ORGANIZATIONID:-}" ]; then
     log "Exporting organization vault (ID: ${BW_ORGANIZATIONID}) to ${BACKUP_FILENAME}..."
     log "Using unencrypted JSON export (will be stored on encrypted drive)"
-    if ! bw export --organizationid "${BW_ORGANIZATIONID}" --format json --output "${BACKUP_PATH}" 2>&1; then
+    if ! bw export --organizationid "${BW_ORGANIZATIONID}" --format json --output "${BACKUP_PATH}" --session "${BW_SESSION}" 2>&1; then
         log "ERROR: Failed to export organization vault"
         exit 2
     fi
