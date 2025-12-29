@@ -24,7 +24,24 @@ if [ ! -d "${TARGET_BACKUP_DIR}" ]; then
 fi
 
 TIMESTAMP=$(date -u +'%Y-%m-%d-%H%M%S')
-BACKUP_FILENAME="bitwarden-backup-${TIMESTAMP}.json"
+
+# Generate backup filename based on profile and organization
+if [ -n "${BW_ORGANIZATIONID:-}" ]; then
+    # Organization backup with profile
+    if [ -n "${BW_PROFILE:-}" ]; then
+        BACKUP_FILENAME="bitwarden-${BW_PROFILE}-org-${BW_ORGANIZATIONID}-backup-${TIMESTAMP}.json"
+    else
+        BACKUP_FILENAME="bitwarden-org-${BW_ORGANIZATIONID}-backup-${TIMESTAMP}.json"
+    fi
+else
+    # Personal vault backup
+    if [ -n "${BW_PROFILE:-}" ]; then
+        BACKUP_FILENAME="bitwarden-${BW_PROFILE}-backup-${TIMESTAMP}.json"
+    else
+        BACKUP_FILENAME="bitwarden-backup-${TIMESTAMP}.json"
+    fi
+fi
+
 BACKUP_PATH="${TARGET_BACKUP_DIR}/${BACKUP_FILENAME}"
 
 log "Backup will be saved to: ${BACKUP_PATH}"
@@ -46,11 +63,20 @@ fi
 export BW_SESSION
 
 # Step 5: Export vault (unencrypted - will be stored on encrypted drive)
-log "Exporting Bitwarden vault to ${BACKUP_FILENAME}..."
-log "Using unencrypted JSON export (will be stored on encrypted drive)"
-if ! bw export --format json --output "${BACKUP_PATH}" 2>&1; then
-    log "ERROR: Failed to export Bitwarden vault"
-    exit 2
+if [ -n "${BW_ORGANIZATIONID:-}" ]; then
+    log "Exporting organization vault (ID: ${BW_ORGANIZATIONID}) to ${BACKUP_FILENAME}..."
+    log "Using unencrypted JSON export (will be stored on encrypted drive)"
+    if ! bw export --organizationid "${BW_ORGANIZATIONID}" --format json --output "${BACKUP_PATH}" 2>&1; then
+        log "ERROR: Failed to export organization vault"
+        exit 2
+    fi
+else
+    log "Exporting personal vault to ${BACKUP_FILENAME}..."
+    log "Using unencrypted JSON export (will be stored on encrypted drive)"
+    if ! bw export --format json --output "${BACKUP_PATH}" 2>&1; then
+        log "ERROR: Failed to export personal vault"
+        exit 2
+    fi
 fi
 
 # Verify export file exists and is not empty

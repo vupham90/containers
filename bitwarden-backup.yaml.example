@@ -1,0 +1,27 @@
+# Example Bitwarden Backup Configuration
+# 
+# Usage: containers bw-backup --profiles bitwarden-backup.yaml
+#
+# Prerequisites:
+# 1. Store credentials in keychain for each profile:
+#    containers bw-backup --profile personal --backup-dir ~/temp
+#    containers bw-backup --profile work --backup-dir ~/temp
+#    containers bw-backup --profile family --backup-dir ~/temp
+
+profiles:
+  # Personal Bitwarden account
+  - name: personal
+    backup_dir: ~/backups/personal
+    
+  # Work account with organization backups
+  - name: work
+    backup_dir: ~/backups/work
+    organizations:
+      - org-id-123
+      - org-id-456
+      
+  # Family account with shared organization
+  - name: family
+    backup_dir: ~/backups/family
+    organizations:
+      - family-org-id

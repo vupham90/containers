@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/urfave/cli/v2"
-	"github.com/vupham90/containers/keychain"
 )
 
 func main() {
@@ -154,24 +153,38 @@ func main() {
 				Usage: "Backup Bitwarden vault to local directory",
 				Flags: []cli.Flag{
 					&cli.StringFlag{
+						Name:    "profile",
+						Aliases: []string{"P"},
+						Usage:   "Profile name for multi-account support (optional, uses default keychain if empty)",
+					},
+					&cli.StringFlag{
+						Name:    "organization-id",
+						Aliases: []string{"o"},
+						Usage:   "Bitwarden organization ID to backup (optional)",
+					},
+					&cli.StringFlag{
+						Name:    "profiles",
+						Usage:   "Path to YAML config file for batch backup mode",
+					},
+					&cli.StringFlag{
 						Name:    "client-id",
 						Aliases: []string{"c"},
-						Usage:   "Bitwarden API client ID",
+						Usage:   "Bitwarden API client ID (optional, uses keychain if not provided)",
 					},
 					&cli.StringFlag{
 						Name:    "client-secret",
 						Aliases: []string{"s"},
-						Usage:   "Bitwarden API client secret",
+						Usage:   "Bitwarden API client secret (optional, uses keychain if not provided)",
 					},
 					&cli.StringFlag{
 						Name:    "password",
 						Aliases: []string{"p"},
-						Usage:   "Bitwarden master password",
+						Usage:   "Bitwarden master password (optional, uses keychain if not provided)",
 					},
 					&cli.StringFlag{
 						Name:    "backup-dir",
 						Aliases: []string{"d"},
-						Usage:   "Backup destination directory",
+						Usage:   "Backup destination directory (required for single mode)",
 						Value:   "./backups",
 					},
 					&cli.BoolFlag{
@@ -189,61 +202,4 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
-}
-
-// getCredential retrieves a credential from CLI flag or macOS Keychain
-func getCredential(flagValue, keychainAccount string, reset bool) (string, error) {
-	if flagValue != "" {
-		return flagValue, nil
-	}
-
-	// Use keychain with reset flag
-	serviceName := "containers-bw-backup"
-	return keychain.GetOrSetPassword(serviceName, keychainAccount, reset)
-}
-
-// runBwBackup executes the Bitwarden backup command
-func runBwBackup(c *cli.Context) error {
-	reset := c.Bool("reset")
-
-	// Get credentials (flags or Keychain with reset option)
-	clientID, err := getCredential(c.String("client-id"), "bitwarden_client_id", reset)
-	if err != nil {
-		return err
-	}
-	clientSecret, err := getCredential(c.String("client-secret"), "bitwarden_client_secret", reset)
-	if err != nil {
-		return err
-	}
-	password, err := getCredential(c.String("password"), "bitwarden_password", reset)
-	if err != nil {
-		return err
-	}
-
-	// Resolve backup directory
-	backupDir := c.String("backup-dir")
-	absBackupDir, err := filepath.Abs(backupDir)
-	if err != nil {
-		return fmt.Errorf("failed to resolve backup directory: %w", err)
-	}
-
-	// Verify backup directory exists
-	if _, err := os.Stat(absBackupDir); os.IsNotExist(err) {
-		return fmt.Errorf("backup directory does not exist: %s", absBackupDir)
-	}
-
-	// Build environment variables
-	env := map[string]EnvVar{
-		"BW_CLIENTID":     {Value: clientID, Sensitive: true},
-		"BW_CLIENTSECRET": {Value: clientSecret, Sensitive: true},
-		"BW_PASSWORD":     {Value: password, Sensitive: true},
-	}
-
-	// Add tmpfs mounts for security
-	tmpfs := []string{"/tmp", "/var/tmp"}
-
-	// Execute backup container
-	image := "ghcr.io/vupham90/containers-bw-backup:latest"
-	fmt.Println("Starting Bitwarden backup...")
-	return RunContainer(image, absBackupDir, []string{}, env, tmpfs)
 }
