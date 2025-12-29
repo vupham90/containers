@@ -1,38 +1,28 @@
-FROM debian:bookworm-slim
+FROM node:20-bookworm-slim
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive \
-    BW_CLI_VERSION=2024.9.0 \
     PATH="/usr/local/bin:${PATH}"
 
-# Install dependencies
+# Install dependencies and Bitwarden CLI via npm (works on all architectures)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    curl \
-    wget \
-    unzip \
     ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* && \
+    npm install -g @bitwarden/cli
 
-# Install Bitwarden CLI
-RUN wget "https://github.com/bitwarden/clients/releases/download/cli-v${BW_CLI_VERSION}/bw-linux-${BW_CLI_VERSION}.zip" -O bw.zip && \
-    unzip bw.zip && \
-    chmod +x bw && \
-    mv bw /usr/local/bin/ && \
-    rm bw.zip
-
-# Create non-root user
-RUN useradd -m -u 1000 -s /bin/bash bwbackup && \
+# Create non-root user (or use existing node user if UID 1000 exists)
+RUN id -u 1000 >/dev/null 2>&1 || useradd -m -u 1000 -s /bin/bash bwbackup && \
     mkdir -p /app && \
-    chown -R bwbackup:bwbackup /app
+    chown -R 1000:1000 /app
 
 # Copy backup script
-COPY --chown=bwbackup:bwbackup backup.sh /app/
+COPY --chown=1000:1000 backup.sh /app/
 
 RUN chmod +x /app/backup.sh
 
 # Switch to non-root user
-USER bwbackup
+USER 1000
 WORKDIR /app
 
 # Setup tmpfs volumes for no-trace execution

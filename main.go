@@ -198,7 +198,8 @@ func getCredential(flagValue, keychainAccount string, reset bool) (string, error
 	}
 
 	// Use keychain with reset flag
-	return keychain.GetOrSetPassword(keychainAccount, reset)
+	serviceName := "containers-bw-backup"
+	return keychain.GetOrSetPassword(serviceName, keychainAccount, reset)
 }
 
 // runBwBackup executes the Bitwarden backup command
