@@ -26,6 +26,7 @@ jobs:
       matrix:
         util:
           - pdf-compress
+          - bw-backup
         # Add more utilities here as they are created
         # - other-util
 

@@ -1,8 +1,12 @@
 {
-    "name": "Go 1.23",
-    "image": "mcr.microsoft.com/devcontainers/go:1.23",
+    "name": "Go 1.25",
+    "image": "mcr.microsoft.com/devcontainers/go:1.25",
     "features": {
-        "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+        "ghcr.io/devcontainers/features/git:1": {},
+        "ghcr.io/devcontainers/features/git-lfs:1": {},
+        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+            "moby": false
+        }
     },
     "customizations": {
         "vscode": {
