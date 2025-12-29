@@ -8,10 +8,16 @@ import (
 	"strings"
 )
 
+// EnvVar represents an environment variable with sensitivity metadata
+type EnvVar struct {
+	Value     string
+	Sensitive bool // If true, value will be redacted in logs
+}
+
 // RunContainer executes a Docker container with the specified image, working directory, and arguments.
 // The working directory is mounted as /workspace in the container.
 // Optional environment variables and tmpfs mounts can be provided for security-sensitive operations.
-func RunContainer(image, workDir string, args []string, env map[string]string, tmpfs []string) error {
+func RunContainer(image, workDir string, args []string, env map[string]EnvVar, tmpfs []string) error {
 	// Resolve absolute path for volume mount
 	absWorkDir, err := filepath.Abs(workDir)
 	if err != nil {
@@ -36,8 +42,8 @@ func RunContainer(image, workDir string, args []string, env map[string]string, t
 	}
 
 	// Add environment variables
-	for key, value := range env {
-		dockerArgs = append(dockerArgs, "-e", fmt.Sprintf("%s=%s", key, value))
+	for key, envVar := range env {
+		dockerArgs = append(dockerArgs, "-e", fmt.Sprintf("%s=%s", key, envVar.Value))
 	}
 
 	// Add volume mount and working directory
@@ -50,8 +56,9 @@ func RunContainer(image, workDir string, args []string, env map[string]string, t
 	// Append command arguments (e.g., gs command and its flags)
 	dockerArgs = append(dockerArgs, args...)
 
-	// Debug: Print the exact command being executed
-	fmt.Printf("Executing: docker %s\n", strings.Join(dockerArgs, " "))
+	// Debug: Print the exact command being executed with sensitive values redacted
+	sanitizedArgs := sanitizeDockerArgs(dockerArgs, env)
+	fmt.Printf("Executing: docker %s\n", strings.Join(sanitizedArgs, " "))
 
 	// Execute docker command
 	cmd := exec.Command("docker", dockerArgs...)
@@ -68,7 +75,7 @@ func RunContainer(image, workDir string, args []string, env map[string]string, t
 
 // RunDaemon runs a Docker container in detached mode with the specified configuration.
 // It first removes any existing container with the same name to ensure idempotency.
-func RunDaemon(name, image string, ports map[string]string, env map[string]string) error {
+func RunDaemon(name, image string, ports map[string]string, env map[string]EnvVar) error {
 	// Remove existing container if it exists
 	removeCmd := exec.Command("docker", "ps", "-a", "--format", "{{.Names}}")
 	output, err := removeCmd.Output()
@@ -108,8 +115,8 @@ func RunDaemon(name, image string, ports map[string]string, env map[string]strin
 	}
 
 	// Add environment variables
-	for key, value := range env {
-		dockerArgs = append(dockerArgs, "-e", fmt.Sprintf("%s=%s", key, value))
+	for key, envVar := range env {
+		dockerArgs = append(dockerArgs, "-e", fmt.Sprintf("%s=%s", key, envVar.Value))
 	}
 
 	// Add image
@@ -125,4 +132,25 @@ func RunDaemon(name, image string, ports map[string]string, env map[string]strin
 	}
 
 	return nil
+}
+
+// sanitizeDockerArgs redacts sensitive environment variable values from docker arguments for logging
+func sanitizeDockerArgs(args []string, env map[string]EnvVar) []string {
+	result := make([]string, len(args))
+	copy(result, args)
+	
+	for i, arg := range result {
+		if arg == "-e" && i+1 < len(result) {
+			// Check if next arg contains sensitive data
+			envPair := result[i+1]
+			for key, envVar := range env {
+				if envVar.Sensitive && strings.HasPrefix(envPair, key+"=") {
+					result[i+1] = key + "=***REDACTED***"
+					break
+				}
+			}
+		}
+	}
+	
+	return result
 }

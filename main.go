@@ -139,10 +139,10 @@ func main() {
 					}
 
 					// Configure environment variables
-					env := map[string]string{
-						"TWS_USERID":   user,
-						"TWS_PASSWORD": password,
-						"TRADING_MODE": mode,
+					env := map[string]EnvVar{
+						"TWS_USERID":   {Value: user, Sensitive: true},
+						"TWS_PASSWORD": {Value: password, Sensitive: true},
+						"TRADING_MODE": {Value: mode, Sensitive: false},
 					}
 
 					fmt.Printf("Starting IB Gateway container '%s' in %s mode...\n", name, mode)
@@ -233,10 +233,10 @@ func runBwBackup(c *cli.Context) error {
 	}
 
 	// Build environment variables
-	env := map[string]string{
-		"BW_CLIENTID":     clientID,
-		"BW_CLIENTSECRET": clientSecret,
-		"BW_PASSWORD":     password,
+	env := map[string]EnvVar{
+		"BW_CLIENTID":     {Value: clientID, Sensitive: true},
+		"BW_CLIENTSECRET": {Value: clientSecret, Sensitive: true},
+		"BW_PASSWORD":     {Value: password, Sensitive: true},
 	}
 
 	// Add tmpfs mounts for security
