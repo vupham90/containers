@@ -163,8 +163,8 @@ func main() {
 						Usage:   "Bitwarden organization ID to backup (optional)",
 					},
 					&cli.StringFlag{
-						Name:    "profiles",
-						Usage:   "Path to YAML config file for batch backup mode",
+						Name:  "profiles",
+						Usage: "Path to YAML config file for batch backup mode",
 					},
 					&cli.StringFlag{
 						Name:    "client-id",
@@ -180,6 +180,16 @@ func main() {
 						Name:    "password",
 						Aliases: []string{"p"},
 						Usage:   "Bitwarden master password (optional, uses keychain if not provided)",
+					},
+					&cli.BoolFlag{
+						Name:    "encrypt",
+						Aliases: []string{"e"},
+						Usage:   "Enable backup encryption (password from keychain)",
+					},
+					&cli.StringFlag{
+						Name:    "backup-password",
+						Aliases: []string{"bp"},
+						Usage:   "Password for encrypted backup (overrides keychain if provided)",
 					},
 					&cli.StringFlag{
 						Name:    "backup-dir",

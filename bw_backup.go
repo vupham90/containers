@@ -40,6 +40,23 @@ func getCredential(flagValue, keychainAccount, profile string, reset bool) (stri
 	return keychain.GetOrSetPassword(serviceName, account, reset)
 }
 
+// getBackupPassword retrieves the backup password with Option 2 logic
+func getBackupPassword(c *cli.Context, reset bool) (string, error) {
+	// If explicit password provided, use it
+	if c.IsSet("backup-password") {
+		return c.String("backup-password"), nil
+	}
+
+	// If --encrypt flag set, get from keychain
+	if c.Bool("encrypt") {
+		serviceName := "containers-bw-backup"
+		return keychain.GetOrSetPassword(serviceName, "bitwarden_backup_password", reset)
+	}
+
+	// No encryption
+	return "", nil
+}
+
 // runBwBackup executes the Bitwarden backup command
 func runBwBackup(c *cli.Context) error {
 	// Check if batch mode (profiles YAML file provided)
@@ -72,6 +89,12 @@ func runSingleBackup(c *cli.Context) error {
 		return err
 	}
 
+	// Get backup password (optional, global)
+	backupPassword, err := getBackupPassword(c, reset)
+	if err != nil {
+		return err
+	}
+
 	// Resolve backup directory
 	backupDir := c.String("backup-dir")
 	absBackupDir, err := filepath.Abs(backupDir)
@@ -89,6 +112,11 @@ func runSingleBackup(c *cli.Context) error {
 		"BW_CLIENTID":     {Value: clientID, Sensitive: true},
 		"BW_CLIENTSECRET": {Value: clientSecret, Sensitive: true},
 		"BW_PASSWORD":     {Value: password, Sensitive: true},
+	}
+
+	// Add backup password if provided
+	if backupPassword != "" {
+		env["BW_BACKUP_PASSWORD"] = EnvVar{Value: backupPassword, Sensitive: true}
 	}
 
 	// Add profile name if provided
@@ -169,12 +197,18 @@ func runBatchBackup(c *cli.Context, configPath string) error {
 	successCount := 0
 	reset := c.Bool("reset")
 
+	// Get backup password once for all profiles (global)
+	backupPassword, err := getBackupPassword(c, reset)
+	if err != nil {
+		return err
+	}
+
 	// Process each profile sequentially
 	for i, profile := range config.Profiles {
 		fmt.Printf("[%d/%d] Processing profile: %s\n", i+1, len(config.Profiles), profile.Name)
 
 		// Backup personal vault
-		if err := backupVault(c, profile, "", reset); err != nil {
+		if err := backupVault(c, profile, "", reset, backupPassword); err != nil {
 			errors = append(errors, fmt.Sprintf("Profile '%s' personal vault: %v", profile.Name, err))
 			fmt.Printf("  ✗ Personal vault backup failed: %v\n", err)
 		} else {
@@ -185,7 +219,7 @@ func runBatchBackup(c *cli.Context, configPath string) error {
 		// Backup each organization
 		for _, orgID := range profile.Organizations {
 			fmt.Printf("  → Backing up organization: %s\n", orgID)
-			if err := backupVault(c, profile, orgID, reset); err != nil {
+			if err := backupVault(c, profile, orgID, reset, backupPassword); err != nil {
 				errors = append(errors, fmt.Sprintf("Profile '%s' org '%s': %v", profile.Name, orgID, err))
 				fmt.Printf("    ✗ Organization backup failed: %v\n", err)
 			} else {
@@ -211,7 +245,7 @@ func runBatchBackup(c *cli.Context, configPath string) error {
 }
 
 // backupVault performs a single vault backup (personal or organization)
-func backupVault(c *cli.Context, profile BackupProfile, orgID string, reset bool) error {
+func backupVault(c *cli.Context, profile BackupProfile, orgID string, reset bool, backupPassword string) error {
 	// Get credentials from keychain using profile name suffix
 	clientID, err := getCredential("", "bitwarden_client_id", profile.Name, reset)
 	if err != nil {
@@ -255,6 +289,11 @@ func backupVault(c *cli.Context, profile BackupProfile, orgID string, reset bool
 		"BW_CLIENTSECRET": {Value: clientSecret, Sensitive: true},
 		"BW_PASSWORD":     {Value: password, Sensitive: true},
 		"BW_PROFILE":      {Value: profile.Name, Sensitive: false},
+	}
+
+	// Add backup password if provided
+	if backupPassword != "" {
+		env["BW_BACKUP_PASSWORD"] = EnvVar{Value: backupPassword, Sensitive: true}
 	}
 
 	// Add organization ID if provided

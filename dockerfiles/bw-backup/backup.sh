@@ -16,7 +16,7 @@ fi
 
 # Cleanup function to unset credentials
 cleanup_credentials() {
-    unset BW_CLIENTID BW_CLIENTSECRET BW_PASSWORD BW_SESSION
+    unset BW_CLIENTID BW_CLIENTSECRET BW_PASSWORD BW_SESSION BW_BACKUP_PASSWORD
     log "Credentials cleared from memory"
 }
 
@@ -38,20 +38,29 @@ fi
 
 TIMESTAMP=$(date -u +'%Y-%m-%d-%H%M%S')
 
+# Determine file extension and format based on backup password
+if [ -n "${BW_BACKUP_PASSWORD:-}" ]; then
+    FILE_EXT="encrypted.json"
+    EXPORT_FORMAT="encrypted_json"
+else
+    FILE_EXT="json"
+    EXPORT_FORMAT="json"
+fi
+
 # Generate backup filename based on profile and organization
 if [ -n "${BW_ORGANIZATIONID:-}" ]; then
     # Organization backup with profile
     if [ -n "${BW_PROFILE:-}" ]; then
-        BACKUP_FILENAME="bitwarden-${BW_PROFILE}-org-${BW_ORGANIZATIONID}-backup-${TIMESTAMP}.json"
+        BACKUP_FILENAME="bitwarden-${BW_PROFILE}-org-${BW_ORGANIZATIONID}-backup-${TIMESTAMP}.${FILE_EXT}"
     else
-        BACKUP_FILENAME="bitwarden-org-${BW_ORGANIZATIONID}-backup-${TIMESTAMP}.json"
+        BACKUP_FILENAME="bitwarden-org-${BW_ORGANIZATIONID}-backup-${TIMESTAMP}.${FILE_EXT}"
     fi
 else
     # Personal vault backup
     if [ -n "${BW_PROFILE:-}" ]; then
-        BACKUP_FILENAME="bitwarden-${BW_PROFILE}-backup-${TIMESTAMP}.json"
+        BACKUP_FILENAME="bitwarden-${BW_PROFILE}-backup-${TIMESTAMP}.${FILE_EXT}"
     else
-        BACKUP_FILENAME="bitwarden-backup-${TIMESTAMP}.json"
+        BACKUP_FILENAME="bitwarden-backup-${TIMESTAMP}.${FILE_EXT}"
     fi
 fi
 
@@ -79,20 +88,36 @@ fi
 
 # Note: BW_SESSION is NOT exported - passed directly to commands
 
-# Step 5: Export vault (unencrypted - will be stored on encrypted drive)
+# Step 5: Export vault
 if [ -n "${BW_ORGANIZATIONID:-}" ]; then
     log "Exporting organization vault (ID: ${BW_ORGANIZATIONID}) to ${BACKUP_FILENAME}..."
-    log "Using unencrypted JSON export (will be stored on encrypted drive)"
-    if ! bw export --organizationid "${BW_ORGANIZATIONID}" --format json --output "${BACKUP_PATH}" --session "${BW_SESSION}"; then
-        log "ERROR: Failed to export organization vault"
-        exit 2
+    if [ -n "${BW_BACKUP_PASSWORD:-}" ]; then
+        log "Using encrypted JSON export with password protection"
+        if ! bw export --organizationid "${BW_ORGANIZATIONID}" --format encrypted_json --password "${BW_BACKUP_PASSWORD}" --output "${BACKUP_PATH}" --session "${BW_SESSION}"; then
+            log "ERROR: Failed to export organization vault"
+            exit 2
+        fi
+    else
+        log "Using unencrypted JSON export (will be stored on encrypted drive)"
+        if ! bw export --organizationid "${BW_ORGANIZATIONID}" --format json --output "${BACKUP_PATH}" --session "${BW_SESSION}"; then
+            log "ERROR: Failed to export organization vault"
+            exit 2
+        fi
     fi
 else
     log "Exporting personal vault to ${BACKUP_FILENAME}..."
-    log "Using unencrypted JSON export (will be stored on encrypted drive)"
-    if ! bw export --format json --output "${BACKUP_PATH}" --session "${BW_SESSION}"; then
-        log "ERROR: Failed to export personal vault"
-        exit 2
+    if [ -n "${BW_BACKUP_PASSWORD:-}" ]; then
+        log "Using encrypted JSON export with password protection"
+        if ! bw export --format encrypted_json --password "${BW_BACKUP_PASSWORD}" --output "${BACKUP_PATH}" --session "${BW_SESSION}"; then
+            log "ERROR: Failed to export personal vault"
+            exit 2
+        fi
+    else
+        log "Using unencrypted JSON export (will be stored on encrypted drive)"
+        if ! bw export --format json --output "${BACKUP_PATH}" --session "${BW_SESSION}"; then
+            log "ERROR: Failed to export personal vault"
+            exit 2
+        fi
     fi
 fi
 
