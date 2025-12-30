@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/urfave/cli/v2"
 	"github.com/vupham90/containers/keychain"
@@ -100,13 +101,39 @@ func runSingleBackup(c *cli.Context) error {
 		env["BW_ORGANIZATIONID"] = EnvVar{Value: orgID, Sensitive: false}
 	}
 
-	// Add tmpfs mounts for security
-	tmpfs := []string{"/tmp", "/var/tmp"}
+	// Add comprehensive tmpfs mounts for security - prevents all disk writes
+	tmpfsMounts := map[string]string{
+		"/tmp":          "rw,noexec,nosuid,size=100m",
+		"/root/.config": "rw,noexec,nosuid,size=50m",
+		"/root/.cache":  "rw,noexec,nosuid,size=50m",
+		"/root/.local":  "rw,noexec,nosuid,size=50m",
+	}
+	
+	var tmpfs []string
+	for path, opts := range tmpfsMounts {
+		tmpfs = append(tmpfs, fmt.Sprintf("%s:%s", path, opts))
+	}
+
+	// Audit logging
+	startTime := time.Now()
+	fmt.Fprintf(os.Stderr, "[AUDIT] Bitwarden backup started: profile=%s time=%s\n",
+		profile, startTime.Format(time.RFC3339))
 
 	// Execute backup container
 	image := "ghcr.io/vupham90/containers-bw-backup:latest"
 	fmt.Println("Starting Bitwarden backup...")
-	return RunContainer(image, absBackupDir, []string{}, env, tmpfs)
+	err = RunContainer(image, absBackupDir, []string{}, env, tmpfs, true)
+	
+	// Log completion
+	if err == nil {
+		fmt.Fprintf(os.Stderr, "[AUDIT] Bitwarden backup completed: profile=%s duration=%s\n",
+			profile, time.Since(startTime))
+	} else {
+		fmt.Fprintf(os.Stderr, "[AUDIT] Bitwarden backup failed: profile=%s duration=%s error=%v\n",
+			profile, time.Since(startTime), err)
+	}
+	
+	return err
 }
 
 // runBatchBackup handles batch backup from YAML config
@@ -235,10 +262,36 @@ func backupVault(c *cli.Context, profile BackupProfile, orgID string, reset bool
 		env["BW_ORGANIZATIONID"] = EnvVar{Value: orgID, Sensitive: false}
 	}
 
-	// Add tmpfs mounts for security
-	tmpfs := []string{"/tmp", "/var/tmp"}
+	// Add comprehensive tmpfs mounts for security - prevents all disk writes
+	tmpfsMounts := map[string]string{
+		"/tmp":          "rw,noexec,nosuid,size=100m",
+		"/root/.config": "rw,noexec,nosuid,size=50m",
+		"/root/.cache":  "rw,noexec,nosuid,size=50m",
+		"/root/.local":  "rw,noexec,nosuid,size=50m",
+	}
+	
+	var tmpfs []string
+	for path, opts := range tmpfsMounts {
+		tmpfs = append(tmpfs, fmt.Sprintf("%s:%s", path, opts))
+	}
+
+	// Audit logging
+	startTime := time.Now()
+	fmt.Fprintf(os.Stderr, "[AUDIT] Bitwarden backup started: profile=%s organization=%s time=%s\n",
+		profile.Name, orgID, startTime.Format(time.RFC3339))
 
 	// Execute backup container
 	image := "ghcr.io/vupham90/containers-bw-backup:latest"
-	return RunContainer(image, absBackupDir, []string{}, env, tmpfs)
+	err = RunContainer(image, absBackupDir, []string{}, env, tmpfs, true)
+	
+	// Log completion
+	if err == nil {
+		fmt.Fprintf(os.Stderr, "[AUDIT] Bitwarden backup completed: profile=%s organization=%s duration=%s\n",
+			profile.Name, orgID, time.Since(startTime))
+	} else {
+		fmt.Fprintf(os.Stderr, "[AUDIT] Bitwarden backup failed: profile=%s organization=%s duration=%s error=%v\n",
+			profile.Name, orgID, time.Since(startTime), err)
+	}
+	
+	return err
 }

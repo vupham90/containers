@@ -83,7 +83,7 @@ func main() {
 						"-o", "/workspace/" + outputFilename,
 						"/workspace/" + filepath.Base(absFilePath),
 					}
-					return RunContainer(image, workDir, args, nil, nil)
+					return RunContainer(image, workDir, args, nil, nil, true)
 				},
 			},
 			{

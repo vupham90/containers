@@ -17,7 +17,7 @@ type EnvVar struct {
 // RunContainer executes a Docker container with the specified image, working directory, and arguments.
 // The working directory is mounted as /workspace in the container.
 // Optional environment variables and tmpfs mounts can be provided for security-sensitive operations.
-func RunContainer(image, workDir string, args []string, env map[string]EnvVar, tmpfs []string) error {
+func RunContainer(image, workDir string, args []string, env map[string]EnvVar, tmpfs []string, removeContainer bool) error {
 	// Resolve absolute path for volume mount
 	absWorkDir, err := filepath.Abs(workDir)
 	if err != nil {
@@ -30,10 +30,11 @@ func RunContainer(image, workDir string, args []string, env map[string]EnvVar, t
 	}
 
 	// Build docker run command
-	// Example: docker run --rm -v /host/path:/workspace ghcr.io/user/containers-pdf-compress:latest gs -sDEVICE=pdfwrite ...
-	dockerArgs := []string{
-		"run",
-		"--rm", // Remove container after execution
+	dockerArgs := []string{"run"}
+
+	// Add --rm flag if requested
+	if removeContainer {
+		dockerArgs = append(dockerArgs, "--rm")
 	}
 
 	// Add tmpfs mounts

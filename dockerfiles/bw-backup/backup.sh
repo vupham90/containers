@@ -14,6 +14,15 @@ if [ -z "${BW_CLIENTID:-}" ] || [ -z "${BW_CLIENTSECRET:-}" ] || [ -z "${BW_PASS
     exit 1
 fi
 
+# Cleanup function to unset credentials
+cleanup_credentials() {
+    unset BW_CLIENTID BW_CLIENTSECRET BW_PASSWORD BW_SESSION
+    log "Credentials cleared from memory"
+}
+
+# Register cleanup to run on exit, interrupt, or termination
+trap cleanup_credentials EXIT INT TERM
+
 # Debug: Print profile and organization info
 log "Profile: ${BW_PROFILE:-<not set>}"
 log "Organization ID: ${BW_ORGANIZATIONID:-<not set>}"
@@ -48,6 +57,10 @@ fi
 
 BACKUP_PATH="${TARGET_BACKUP_DIR}/${BACKUP_FILENAME}"
 
+# Create file with restrictive permissions before writing
+touch "${BACKUP_PATH}"
+chmod 0400 "${BACKUP_PATH}"
+
 log "Backup will be saved to: ${BACKUP_PATH}"
 
 # Step 3: Login to Bitwarden with API key
@@ -57,27 +70,27 @@ if ! bw login --apikey 2>&1; then
     exit 1
 fi
 
-# Step 4: Unlock vault
+# Step 4: Unlock vault (DO NOT export BW_SESSION)
 log "Unlocking Bitwarden vault..."
-if ! BW_SESSION=$(bw unlock --passwordenv BW_PASSWORD --raw 2>&1); then
+if ! BW_SESSION=$(bw unlock --passwordenv BW_PASSWORD --raw); then
     log "ERROR: Failed to unlock Bitwarden vault"
     exit 1
 fi
 
-export BW_SESSION
+# Note: BW_SESSION is NOT exported - passed directly to commands
 
 # Step 5: Export vault (unencrypted - will be stored on encrypted drive)
 if [ -n "${BW_ORGANIZATIONID:-}" ]; then
     log "Exporting organization vault (ID: ${BW_ORGANIZATIONID}) to ${BACKUP_FILENAME}..."
     log "Using unencrypted JSON export (will be stored on encrypted drive)"
-    if ! bw export --organizationid "${BW_ORGANIZATIONID}" --format json --output "${BACKUP_PATH}" --session "${BW_SESSION}" 2>&1; then
+    if ! bw export --organizationid "${BW_ORGANIZATIONID}" --format json --output "${BACKUP_PATH}" --session "${BW_SESSION}"; then
         log "ERROR: Failed to export organization vault"
         exit 2
     fi
 else
     log "Exporting personal vault to ${BACKUP_FILENAME}..."
     log "Using unencrypted JSON export (will be stored on encrypted drive)"
-    if ! bw export --format json --output "${BACKUP_PATH}" 2>&1; then
+    if ! bw export --format json --output "${BACKUP_PATH}" --session "${BW_SESSION}"; then
         log "ERROR: Failed to export personal vault"
         exit 2
     fi
@@ -97,12 +110,8 @@ log "Locking Bitwarden vault..."
 bw lock || true
 bw logout || true
 
-# Step 7: Cleanup traces for security
-log "Cleaning up traces..."
-rm -f ~/.bash_history 2>/dev/null || true
-rm -rf /tmp/* 2>/dev/null || true
-rm -rf /var/tmp/* 2>/dev/null || true
-rm -rf ~/.cache/* 2>/dev/null || true
+# Unset BW_SESSION immediately after use
+unset BW_SESSION
 
 log "Backup process completed successfully!"
 exit 0
