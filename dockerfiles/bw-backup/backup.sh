@@ -72,34 +72,47 @@ chmod 0400 "${BACKUP_PATH}"
 
 log "Backup will be saved to: ${BACKUP_PATH}"
 
-# Step 3: Login to Bitwarden with API key
-log "Authenticating to Bitwarden..."
-if ! bw login --apikey 2>&1; then
-    log "ERROR: Failed to login to Bitwarden"
-    exit 1
+# Step 3: Check status and login only if unauthenticated
+STATUS=$(bw status| jq -r '.status')
+log "Current Bitwarden status: ${STATUS}"
+
+if [ "$STATUS" = "unauthenticated" ]; then
+    log "Logging in to Bitwarden..."
+    if ! bw login --apikey 2>&1; then
+        log "ERROR: Failed to login to Bitwarden"
+        exit 1
+    fi
 fi
 
-# Step 4: Unlock vault (DO NOT export BW_SESSION)
+# Step 4: Unlock vault and export session
 log "Unlocking Bitwarden vault..."
 if ! BW_SESSION=$(bw unlock --passwordenv BW_PASSWORD --raw); then
     log "ERROR: Failed to unlock Bitwarden vault"
     exit 1
 fi
 
-# Note: BW_SESSION is NOT exported - passed directly to commands
+# Verify session token was actually returned
+if [ -z "$BW_SESSION" ]; then
+    log "ERROR: Unlock succeeded but session token is empty. Check password or account settings."
+    exit 1
+fi
 
-# Step 5: Export vault
+# Export BW_SESSION for bw export command to use
+export BW_SESSION
+log "Session unlocked and exported (length: ${#BW_SESSION})"
+
+# Step 5: Export vault (pipe password to handle CLI bug where it prompts despite valid session)
 if [ -n "${BW_ORGANIZATIONID:-}" ]; then
     log "Exporting organization vault (ID: ${BW_ORGANIZATIONID}) to ${BACKUP_FILENAME}..."
     if [ -n "${BW_BACKUP_PASSWORD:-}" ]; then
         log "Using encrypted JSON export with password protection"
-        if ! bw export --organizationid "${BW_ORGANIZATIONID}" --format encrypted_json --password "${BW_BACKUP_PASSWORD}" --output "${BACKUP_PATH}" --session "${BW_SESSION}"; then
+        if ! echo "${BW_PASSWORD}" | bw export --organizationid "${BW_ORGANIZATIONID}" --format encrypted_json --password "${BW_BACKUP_PASSWORD}" --output "${BACKUP_PATH}"; then
             log "ERROR: Failed to export organization vault"
             exit 2
         fi
     else
         log "Using unencrypted JSON export (will be stored on encrypted drive)"
-        if ! bw export --organizationid "${BW_ORGANIZATIONID}" --format json --output "${BACKUP_PATH}" --session "${BW_SESSION}"; then
+        if ! echo "${BW_PASSWORD}" | bw export --organizationid "${BW_ORGANIZATIONID}" --format json --output "${BACKUP_PATH}"; then
             log "ERROR: Failed to export organization vault"
             exit 2
         fi
@@ -108,13 +121,13 @@ else
     log "Exporting personal vault to ${BACKUP_FILENAME}..."
     if [ -n "${BW_BACKUP_PASSWORD:-}" ]; then
         log "Using encrypted JSON export with password protection"
-        if ! bw export --format encrypted_json --password "${BW_BACKUP_PASSWORD}" --output "${BACKUP_PATH}" --session "${BW_SESSION}"; then
+        if ! echo "${BW_PASSWORD}" | bw export --format encrypted_json --password "${BW_BACKUP_PASSWORD}" --output "${BACKUP_PATH}"; then
             log "ERROR: Failed to export personal vault"
             exit 2
         fi
     else
         log "Using unencrypted JSON export (will be stored on encrypted drive)"
-        if ! bw export --format json --output "${BACKUP_PATH}" --session "${BW_SESSION}"; then
+        if ! echo "${BW_PASSWORD}" | bw export --format json --output "${BACKUP_PATH}"; then
             log "ERROR: Failed to export personal vault"
             exit 2
         fi
@@ -130,10 +143,9 @@ fi
 FILE_SIZE=$(stat -c%s "${BACKUP_PATH}" 2>/dev/null || stat -f%z "${BACKUP_PATH}" 2>/dev/null)
 log "Export completed successfully (${FILE_SIZE} bytes)"
 
-# Step 6: Lock vault and logout
+# Step 6: Lock vault (keep session for next run)
 log "Locking Bitwarden vault..."
 bw lock || true
-bw logout || true
 
 # Unset BW_SESSION immediately after use
 unset BW_SESSION

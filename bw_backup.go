@@ -130,11 +130,11 @@ func runSingleBackup(c *cli.Context) error {
 	}
 
 	// Add comprehensive tmpfs mounts for security - prevents all disk writes
+	// Note: /home/node/.config is excluded as it's mounted persistently for session data
 	tmpfsMounts := map[string]string{
-		"/tmp":          "rw,noexec,nosuid,size=100m",
-		"/root/.config": "rw,noexec,nosuid,size=50m",
-		"/root/.cache":  "rw,noexec,nosuid,size=50m",
-		"/root/.local":  "rw,noexec,nosuid,size=50m",
+		"/tmp":              "rw,noexec,nosuid,size=100m",
+		"/home/node/.cache": "rw,noexec,nosuid,size=50m",
+		"/home/node/.local": "rw,noexec,nosuid,size=50m",
 	}
 
 	var tmpfs []string
@@ -147,10 +147,22 @@ func runSingleBackup(c *cli.Context) error {
 	fmt.Fprintf(os.Stderr, "[AUDIT] Bitwarden backup started: profile=%s time=%s\n",
 		profile, startTime.Format(time.RFC3339))
 
+	// Create profile-specific config directory for persistent Bitwarden CLI sessions
+	configDir := filepath.Join(os.Getenv("HOME"), ".config", "Bitwarden CLI")
+	if profile != "" {
+		configDir = filepath.Join(os.Getenv("HOME"), ".config", fmt.Sprintf("Bitwarden CLI-%s", profile))
+	}
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		return fmt.Errorf("failed to create config dir: %w", err)
+	}
+
+	// Mount config directory for persistent sessions (container runs as node user)
+	volumeMounts := []string{fmt.Sprintf("%s:/home/node/.config/Bitwarden CLI", configDir)}
+
 	// Execute backup container
 	image := "ghcr.io/vupham90/containers-bw-backup:latest"
 	fmt.Println("Starting Bitwarden backup...")
-	err = RunContainer(image, absBackupDir, []string{}, env, tmpfs, true)
+	err = RunContainer(image, absBackupDir, []string{}, env, tmpfs, volumeMounts, true)
 
 	// Log completion
 	if err == nil {
@@ -302,11 +314,11 @@ func backupVault(_ *cli.Context, profile BackupProfile, orgID string, reset bool
 	}
 
 	// Add comprehensive tmpfs mounts for security - prevents all disk writes
+	// Note: /home/node/.config is excluded as it's mounted persistently for session data
 	tmpfsMounts := map[string]string{
-		"/tmp":          "rw,noexec,nosuid,size=100m",
-		"/root/.config": "rw,noexec,nosuid,size=50m",
-		"/root/.cache":  "rw,noexec,nosuid,size=50m",
-		"/root/.local":  "rw,noexec,nosuid,size=50m",
+		"/tmp":              "rw,noexec,nosuid,size=100m",
+		"/home/node/.cache": "rw,noexec,nosuid,size=50m",
+		"/home/node/.local": "rw,noexec,nosuid,size=50m",
 	}
 
 	var tmpfs []string
@@ -319,9 +331,21 @@ func backupVault(_ *cli.Context, profile BackupProfile, orgID string, reset bool
 	fmt.Fprintf(os.Stderr, "[AUDIT] Bitwarden backup started: profile=%s organization=%s time=%s\n",
 		profile.Name, orgID, startTime.Format(time.RFC3339))
 
+	// Create profile-specific config directory for persistent Bitwarden CLI sessions
+	configDir := filepath.Join(os.Getenv("HOME"), ".config", "Bitwarden CLI")
+	if profile.Name != "" {
+		configDir = filepath.Join(os.Getenv("HOME"), ".config", fmt.Sprintf("Bitwarden CLI-%s", profile.Name))
+	}
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		return fmt.Errorf("failed to create config dir: %w", err)
+	}
+
+	// Mount config directory for persistent sessions (container runs as node user)
+	volumeMounts := []string{fmt.Sprintf("%s:/home/node/.config/Bitwarden CLI", configDir)}
+
 	// Execute backup container
 	image := "ghcr.io/vupham90/containers-bw-backup:latest"
-	err = RunContainer(image, absBackupDir, []string{}, env, tmpfs, true)
+	err = RunContainer(image, absBackupDir, []string{}, env, tmpfs, volumeMounts, true)
 
 	// Log completion
 	if err == nil {

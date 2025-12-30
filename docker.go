@@ -16,8 +16,8 @@ type EnvVar struct {
 
 // RunContainer executes a Docker container with the specified image, working directory, and arguments.
 // The working directory is mounted as /workspace in the container.
-// Optional environment variables and tmpfs mounts can be provided for security-sensitive operations.
-func RunContainer(image, workDir string, args []string, env map[string]EnvVar, tmpfs []string, removeContainer bool) error {
+// Optional environment variables, tmpfs mounts, and additional volume mounts can be provided.
+func RunContainer(image, workDir string, args []string, env map[string]EnvVar, tmpfs []string, volumeMounts []string, removeContainer bool) error {
 	// Resolve absolute path for volume mount
 	absWorkDir, err := filepath.Abs(workDir)
 	if err != nil {
@@ -45,6 +45,11 @@ func RunContainer(image, workDir string, args []string, env map[string]EnvVar, t
 	// Add environment variables
 	for key, envVar := range env {
 		dockerArgs = append(dockerArgs, "-e", fmt.Sprintf("%s=%s", key, envVar.Value))
+	}
+
+	// Add custom volume mounts
+	for _, mount := range volumeMounts {
+		dockerArgs = append(dockerArgs, "-v", mount)
 	}
 
 	// Add volume mount and working directory
