@@ -136,7 +136,7 @@ func runSingleBackup(c *cli.Context) error {
 		"/root/.cache":  "rw,noexec,nosuid,size=50m",
 		"/root/.local":  "rw,noexec,nosuid,size=50m",
 	}
-	
+
 	var tmpfs []string
 	for path, opts := range tmpfsMounts {
 		tmpfs = append(tmpfs, fmt.Sprintf("%s:%s", path, opts))
@@ -151,7 +151,7 @@ func runSingleBackup(c *cli.Context) error {
 	image := "ghcr.io/vupham90/containers-bw-backup:latest"
 	fmt.Println("Starting Bitwarden backup...")
 	err = RunContainer(image, absBackupDir, []string{}, env, tmpfs, true)
-	
+
 	// Log completion
 	if err == nil {
 		fmt.Fprintf(os.Stderr, "[AUDIT] Bitwarden backup completed: profile=%s duration=%s\n",
@@ -160,7 +160,7 @@ func runSingleBackup(c *cli.Context) error {
 		fmt.Fprintf(os.Stderr, "[AUDIT] Bitwarden backup failed: profile=%s duration=%s error=%v\n",
 			profile, time.Since(startTime), err)
 	}
-	
+
 	return err
 }
 
@@ -245,7 +245,7 @@ func runBatchBackup(c *cli.Context, configPath string) error {
 }
 
 // backupVault performs a single vault backup (personal or organization)
-func backupVault(c *cli.Context, profile BackupProfile, orgID string, reset bool, backupPassword string) error {
+func backupVault(_ *cli.Context, profile BackupProfile, orgID string, reset bool, backupPassword string) error {
 	// Get credentials from keychain using profile name suffix
 	clientID, err := getCredential("", "bitwarden_client_id", profile.Name, reset)
 	if err != nil {
@@ -308,7 +308,7 @@ func backupVault(c *cli.Context, profile BackupProfile, orgID string, reset bool
 		"/root/.cache":  "rw,noexec,nosuid,size=50m",
 		"/root/.local":  "rw,noexec,nosuid,size=50m",
 	}
-	
+
 	var tmpfs []string
 	for path, opts := range tmpfsMounts {
 		tmpfs = append(tmpfs, fmt.Sprintf("%s:%s", path, opts))
@@ -322,7 +322,7 @@ func backupVault(c *cli.Context, profile BackupProfile, orgID string, reset bool
 	// Execute backup container
 	image := "ghcr.io/vupham90/containers-bw-backup:latest"
 	err = RunContainer(image, absBackupDir, []string{}, env, tmpfs, true)
-	
+
 	// Log completion
 	if err == nil {
 		fmt.Fprintf(os.Stderr, "[AUDIT] Bitwarden backup completed: profile=%s organization=%s duration=%s\n",
@@ -331,6 +331,6 @@ func backupVault(c *cli.Context, profile BackupProfile, orgID string, reset bool
 		fmt.Fprintf(os.Stderr, "[AUDIT] Bitwarden backup failed: profile=%s organization=%s duration=%s error=%v\n",
 			profile.Name, orgID, time.Since(startTime), err)
 	}
-	
+
 	return err
 }
