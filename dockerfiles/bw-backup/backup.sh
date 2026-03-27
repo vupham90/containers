@@ -84,22 +84,37 @@ if [ "$STATUS" = "unauthenticated" ]; then
     fi
 fi
 
-# Step 4: Unlock vault and export session
+# Step 4: Unlock vault and export session (with retry for Bitwarden CLI bug)
+MAX_RETRIES=3
+RETRY_COUNT=0
 log "Unlocking Bitwarden vault..."
-if ! BW_SESSION=$(bw unlock --passwordenv BW_PASSWORD --raw); then
-    log "ERROR: Failed to unlock Bitwarden vault"
-    exit 1
-fi
 
-# Verify session token was actually returned
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if [ $RETRY_COUNT -gt 0 ]; then
+        log "Retry attempt $RETRY_COUNT of $((MAX_RETRIES-1))..."
+        sleep 2
+    fi
+    
+    BW_SESSION=$(bw unlock --passwordenv BW_PASSWORD --raw)
+    
+    # Check if we got a valid session token
+    if [ -n "$BW_SESSION" ]; then
+        log "Session unlocked successfully (length: ${#BW_SESSION})"
+        break
+    fi
+    
+    log "Unlock returned empty session token"
+    RETRY_COUNT=$((RETRY_COUNT+1))
+done
+
+# Final check
 if [ -z "$BW_SESSION" ]; then
-    log "ERROR: Unlock succeeded but session token is empty. Check password or account settings."
+    log "ERROR: Failed to get valid session after $MAX_RETRIES attempts. Check password or account settings."
     exit 1
 fi
 
 # Export BW_SESSION for bw export command to use
 export BW_SESSION
-log "Session unlocked and exported (length: ${#BW_SESSION})"
 
 # Step 5: Export vault (pipe password to handle CLI bug where it prompts despite valid session)
 if [ -n "${BW_ORGANIZATIONID:-}" ]; then
