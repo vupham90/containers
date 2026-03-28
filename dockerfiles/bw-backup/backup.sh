@@ -20,8 +20,26 @@ cleanup_credentials() {
     log "Credentials cleared from memory"
 }
 
+# Remove failed/empty backup artifact from final destination
+cleanup_failed_backup() {
+    local exit_code=$?
+
+    if [ -n "${BACKUP_PATH:-}" ] && [ -f "${BACKUP_PATH}" ]; then
+        if [ "$exit_code" -ne 0 ] || [ ! -s "${BACKUP_PATH}" ]; then
+            rm -f "${BACKUP_PATH}" || true
+            log "Removed failed backup file: ${BACKUP_PATH}"
+        fi
+    fi
+}
+
+# Cleanup wrapper to preserve credential cleanup and failed backup cleanup
+cleanup() {
+    cleanup_failed_backup
+    cleanup_credentials
+}
+
 # Register cleanup to run on exit, interrupt, or termination
-trap cleanup_credentials EXIT INT TERM
+trap cleanup EXIT INT TERM
 
 # Debug: Print profile and organization info
 log "Profile: ${BW_PROFILE:-<not set>}"
@@ -65,10 +83,6 @@ else
 fi
 
 BACKUP_PATH="${TARGET_BACKUP_DIR}/${BACKUP_FILENAME}"
-
-# Create file with restrictive permissions before writing
-touch "${BACKUP_PATH}"
-chmod 0400 "${BACKUP_PATH}"
 
 log "Backup will be saved to: ${BACKUP_PATH}"
 
@@ -154,6 +168,8 @@ if [ ! -s "${BACKUP_PATH}" ]; then
     log "ERROR: Export file is empty or does not exist"
     exit 2
 fi
+
+chmod 0400 "${BACKUP_PATH}"
 
 FILE_SIZE=$(stat -c%s "${BACKUP_PATH}" 2>/dev/null || stat -f%z "${BACKUP_PATH}" 2>/dev/null)
 log "Export completed successfully (${FILE_SIZE} bytes)"
