@@ -92,13 +92,23 @@ log "Current Bitwarden status: ${STATUS}"
 
 if [ "$STATUS" = "unauthenticated" ]; then
     log "Logging in to Bitwarden..."
-    if ! bw login --apikey 2>&1; then
-        log "ERROR: Failed to login to Bitwarden"
-        exit 1
+    LOGIN_OUTPUT=$(bw login --apikey 2>&1)
+    LOGIN_EXIT=$?
+    if [ $LOGIN_EXIT -ne 0 ]; then
+        if echo "$LOGIN_OUTPUT" | grep -qi "already logged in"; then
+            log "Already logged in, continuing..."
+        else
+            log "ERROR: Failed to login to Bitwarden: $LOGIN_OUTPUT"
+            exit 1
+        fi
     fi
 fi
 
-# Step 4: Unlock vault and export session (with retry for Bitwarden CLI bug)
+# Workaround for bw CLI bug: unlock may return empty session after fresh login
+# (race condition fixed in upstream but not yet released). Lock first to reset state.
+bw lock > /dev/null 2>&1 || true
+
+# Step 4: Unlock vault and export session
 MAX_RETRIES=3
 RETRY_COUNT=0
 log "Unlocking Bitwarden vault..."
