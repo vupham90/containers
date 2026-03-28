@@ -90,7 +90,6 @@ log "Backup will be saved to: ${BACKUP_PATH}"
 STATUS=$(bw status| jq -r '.status')
 log "Current Bitwarden status: ${STATUS}"
 
-JUST_LOGGED_IN=0
 if [ "$STATUS" = "unauthenticated" ]; then
     log "Logging in to Bitwarden..."
     LOGIN_OUTPUT=$(bw login --apikey 2>&1)
@@ -102,8 +101,6 @@ if [ "$STATUS" = "unauthenticated" ]; then
             log "ERROR: Failed to login to Bitwarden: $LOGIN_OUTPUT"
             exit 1
         fi
-    else
-        JUST_LOGGED_IN=1
     fi
 fi
 
