@@ -10,7 +10,7 @@ RUN apt-get update && \
     ca-certificates \
     jq \
     && rm -rf /var/lib/apt/lists/* && \
-    npm install -g @bitwarden/cli
+    npm install -g @bitwarden/cli@2025.12.1
 
 # Create non-root user (or use existing node user if UID 1000 exists)
 RUN id -u 1000 >/dev/null 2>&1 || useradd -m -u 1000 -s /bin/bash bwbackup && \

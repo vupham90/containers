@@ -90,6 +90,7 @@ log "Backup will be saved to: ${BACKUP_PATH}"
 STATUS=$(bw status| jq -r '.status')
 log "Current Bitwarden status: ${STATUS}"
 
+JUST_LOGGED_IN=0
 if [ "$STATUS" = "unauthenticated" ]; then
     log "Logging in to Bitwarden..."
     LOGIN_OUTPUT=$(bw login --apikey 2>&1)
@@ -101,12 +102,16 @@ if [ "$STATUS" = "unauthenticated" ]; then
             log "ERROR: Failed to login to Bitwarden: $LOGIN_OUTPUT"
             exit 1
         fi
+    else
+        JUST_LOGGED_IN=1
     fi
 fi
 
-# Workaround for bw CLI bug: unlock may return empty session after fresh login
-# (race condition fixed in upstream but not yet released). Lock first to reset state.
-bw lock > /dev/null 2>&1 || true
+# Workaround for bw CLI race condition: unlock returns empty session right after
+# a fresh login due to state observables not yet propagating. Lock first to reset.
+if [ "$JUST_LOGGED_IN" = "1" ]; then
+    bw lock > /dev/null 2>&1 || true
+fi
 
 # Step 4: Unlock vault and export session
 MAX_RETRIES=3
