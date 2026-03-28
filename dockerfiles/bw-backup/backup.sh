@@ -107,11 +107,9 @@ if [ "$STATUS" = "unauthenticated" ]; then
     fi
 fi
 
-# Workaround for bw CLI race condition: unlock returns empty session right after
-# a fresh login due to state observables not yet propagating. Lock first to reset.
-if [ "$JUST_LOGGED_IN" = "1" ]; then
-    bw lock > /dev/null 2>&1 || true
-fi
+# Workaround for bw CLI race condition (fixed upstream, not yet released):
+# lock first to reset internal state before unlock.
+bw lock > /dev/null 2>&1 || true
 
 # Step 4: Unlock vault and export session
 MAX_RETRIES=3
